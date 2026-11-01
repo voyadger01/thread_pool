@@ -1,5 +1,6 @@
 #include "pool.hpp"
 #include <mutex>
+#include <stdexcept>
 
 ThreadPool::ThreadPool(size_t thread_count):
   stopped_(false),
@@ -81,10 +82,65 @@ void ThreadPool::stop(bool cancel_pending)
 }
 
 void ThreadPool::grow_to(size_t count)
-{}
+{
+  std::lock_guard< std::mutex > lock(mutex_);
+  if (stopped_) {
+    throw std::runtime_error("Pool is stopped");
+  }
+  check_not_worker_thread();
+
+  if (count <= threads_.size()) {
+    return;
+  }
+
+  size_t old_size = threads_.size();
+  workers_stop_.resize(count, false);
+  threads_.reserve(count);
+
+  for (size_t i = old_size; i < count; ++i) {
+    threads_.emplace_back(&ThreadPool::execute, this, i);
+  }
+}
 
 void ThreadPool::shrink_to(size_t count)
-{}
+{
+  check_not_worker_thread();
+
+  if (count == 0) {
+    count = 1;
+  }
+
+  size_t old_size;
+  {
+    std::lock_guard< std::mutex > lock(mutex_);
+    if (stopped_) {
+      throw std::runtime_error("Pool is stopped");
+    }
+    old_size = threads_.size();
+
+    if (count >= old_size) {
+      return;
+    }
+
+    for (size_t i = count; i < old_size; ++i) {
+      workers_stop_[i] = true;
+    }
+  }
+
+  condition_.notify_all();
+
+  for (size_t i = count; i < old_size; ++i) {
+    if (threads_[i].joinable()) {
+      threads_[i].join();
+    }
+  }
+
+  {
+    std::lock_guard< std::mutex > lock(mutex_);
+    threads_.resize(count);
+    workers_stop_.resize(count);
+  }
+}
 
 void ThreadPool::resize(size_t count)
 {
