@@ -57,7 +57,7 @@ private:
   void execute(size_t id);
 
   std::queue< Task > tasks_;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::condition_variable condition_;
   std::condition_variable idle_condition_;
   bool stopped_;
@@ -66,6 +66,7 @@ private:
   size_t active_tasks_;
   std::vector< std::thread > threads_;
   std::vector< bool > workers_stop_;
+  std::mutex user_mutex_;
 };
 
 #endif
