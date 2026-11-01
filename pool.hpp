@@ -38,7 +38,10 @@ private:
   std::queue< Task > tasks_;
   std::mutex mtx_;
   std::condition_variable cv_;
-  bool stop_ = false;
+  bool stopped_;
+  bool paused_;
+  bool cancel_pending_;
+  size_t active_tasks_;
   std::vector< std::thread > thrs_;
 };
 
