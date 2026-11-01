@@ -184,6 +184,49 @@ ThreadPool::~ThreadPool() noexcept
   }
 }
 
+void ThreadPool::execute(size_t id)
+{
+  bool finished = false;
+
+  while (!finished) {
+    Task task;
+
+    {
+      std::unique_lock< std::mutex > lock(mutex_);
+
+      condition_.wait(lock, [this, id]() {
+        return stopped_ || workers_stop_[id] || (!paused_ && !tasks_.empty());
+      });
+
+      finished = workers_stop_[id] || (stopped_ && (cancel_pending_ || tasks_.empty()));
+
+      if (!finished) {
+        task = std::move(tasks_.front());
+        tasks_.pop();
+        ++active_tasks_;
+      }
+    }
+
+    if (finished) {
+      break;
+    }
+
+    try {
+      task();
+    } catch (...) {
+    }
+
+    {
+      std::lock_guard< std::mutex > lock(mutex_);
+      --active_tasks_;
+
+      if (tasks_.empty() && active_tasks_ == 0) {
+        idle_condition_.notify_all();
+      }
+    }
+  }
+}
+
 void ThreadPool::check_not_worker_thread() const
 {
   std::thread::id current = std::this_thread::get_id();
