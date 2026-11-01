@@ -63,7 +63,8 @@ private:
   bool paused_;
   bool cancel_pending_;
   size_t active_tasks_;
-  std::vector< std::thread > thrs_;
+  std::vector< std::thread > threads_;
+  std::vector< bool > workers_stop_;
 };
 
 #endif

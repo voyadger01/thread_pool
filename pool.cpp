@@ -1,7 +1,21 @@
 #include "pool.hpp"
 
-ThreadPool::ThreadPool(size_t thread_count)
-{}
+ThreadPool::ThreadPool(size_t thread_count):
+  stopped_(false),
+  paused_(false),
+  cancel_pending_(false),
+  active_tasks_(0)
+{
+  if (thread_count == 0) {
+    thread_count = 1;
+  }
+
+  workers_stop_.resize(thread_count, false);
+
+  for (size_t i = 0; i < thread_count; ++i) {
+    threads_.emplace_back(&ThreadPool::execute, this, i);
+  }
+}
 
 void ThreadPool::wait_idle()
 {}
