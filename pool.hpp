@@ -59,6 +59,7 @@ private:
   std::queue< Task > tasks_;
   std::mutex mutex_;
   std::condition_variable condition_;
+  std::condition_variable idle_condition_;
   bool stopped_;
   bool paused_;
   bool cancel_pending_;

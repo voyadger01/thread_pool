@@ -18,7 +18,12 @@ ThreadPool::ThreadPool(size_t thread_count):
 }
 
 void ThreadPool::wait_idle()
-{}
+{
+  std::unique_lock< std::mutex > lock(mutex_);
+  idle_condition_.wait(lock, [this]() {
+    return tasks_.empty() && active_tasks_ == 0;
+  });
+}
 
 void ThreadPool::pause()
 {}
@@ -51,4 +56,9 @@ void ThreadPool::unlock()
 {}
 
 ThreadPool::~ThreadPool() noexcept
-{}
+{
+  try {
+    stop();
+  } catch (...) {
+  }
+}
