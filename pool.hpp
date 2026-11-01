@@ -55,6 +55,7 @@ public:
 
 private:
   void execute(size_t id);
+  void check_not_worker_thread() const;
 
   std::queue< Task > tasks_;
   mutable std::mutex mutex_;

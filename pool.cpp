@@ -1,4 +1,5 @@
 #include "pool.hpp"
+#include <mutex>
 
 ThreadPool::ThreadPool(size_t thread_count):
   stopped_(false),
@@ -43,7 +44,41 @@ void ThreadPool::resume()
 }
 
 void ThreadPool::stop(bool cancel_pending)
-{}
+{
+  check_not_worker_thread();
+  {
+    std::lock_guard< std::mutex > lock(mutex_);
+    if (stopped_ && threads_.empty()) {
+      return;
+    }
+
+    stopped_ = true;
+    paused_ = false;
+    cancel_pending_ = cancel_pending;
+
+    if (cancel_pending_) {
+      std::queue< Task > stub;
+      stub.swap(tasks_);
+    }
+  }
+
+  condition_.notify_all();
+
+  for (size_t i = 0; i < threads_.size(); ++i) {
+    if (threads_[i].joinable()) {
+      threads_[i].join();
+    }
+  }
+
+  {
+    std::lock_guard< std::mutex > lock(mutex_);
+    threads_.clear();
+    workers_stop_.clear();
+    if (tasks_.empty() && active_tasks_ == 0) {
+      idle_condition_.notify_all();
+    }
+  }
+}
 
 void ThreadPool::grow_to(size_t count)
 {}
@@ -90,5 +125,15 @@ ThreadPool::~ThreadPool() noexcept
   try {
     stop();
   } catch (...) {
+  }
+}
+
+void ThreadPool::check_not_worker_thread() const
+{
+  std::thread::id current = std::this_thread::get_id();
+  for (const auto &thread : threads_) {
+    if (thread.joinable() && thread.get_id() == current) {
+      throw std::logic_error("This operation cannot be called from a pool task");
+    }
   }
 }
